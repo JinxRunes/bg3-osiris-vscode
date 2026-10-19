@@ -47,7 +47,7 @@
         },
         {
           "name": "keyword.control.osiris",
-          "match": "\\b(AND|IF|NOT|PROC|THEN|QRY)\\b"
+          "match": "\\b(AND|IF|IFF|NOT|PROC|THEN|QRY)\\b"
         },
         {
           "name": "keyword.other.osiris",

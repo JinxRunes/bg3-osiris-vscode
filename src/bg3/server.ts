@@ -134,7 +134,7 @@ connection.onCompletion(params => {
       kind: symbol.kind === 'event' ? CompletionItemKind.Event : CompletionItemKind.Function,
       detail: signatureLabel(symbol), documentation: symbol.builtin ? 'Signature from this project’s generated BG3 story header.' : 'Project or dependency definition.' })),
     ...[...aliases].map(label => ({ label, kind: CompletionItemKind.TypeParameter })),
-    ...['IF', 'AND', 'THEN', 'NOT', 'PROC', 'QRY', 'GoalCompleted'].map(label => ({ label, kind: CompletionItemKind.Keyword }))
+    ...['IF', 'IFF', 'AND', 'THEN', 'NOT', 'PROC', 'QRY', 'GoalCompleted'].map(label => ({ label, kind: CompletionItemKind.Keyword }))
   ];
 });
 
@@ -187,7 +187,7 @@ connection.onReferences(params => {
 connection.onDocumentSymbol(params => {
   const doc = documents.get(params.textDocument.uri); if (!doc) return [];
   const text = doc.getText();
-  return [...maskComments(text).matchAll(/^\s*(IF|PROC|QRY)\s+([A-Za-z_]\w*)\s*\(/gm)].map(match => {
+  return [...maskComments(text).matchAll(/^\s*(IF|IFF|PROC|QRY)\s+([A-Za-z_]\w*)\s*\(/gm)].map(match => {
     const start = match.index! + match[0].lastIndexOf(match[2]);
     const call = callAt(text, start, match.index! + match[0].lastIndexOf('('), match[2]);
     return { name: `${match[1]} ${match[2]}`, kind: SymbolKind.Function,

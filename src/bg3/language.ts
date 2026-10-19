@@ -79,7 +79,7 @@ export function enumNormalized(text: string, enums: Map<string, Map<string, numb
 
 export function syntaxIssues(text: string, enums: Map<string, Map<string, number>>): Issue[] {
   const masked = maskComments(text, true);
-  const rule = /^\s*(IF|PROC|QRY)\b/m.exec(masked);
+  const rule = /^\s*(IF|IFF|PROC|QRY)\b/m.exec(masked);
   if (rule && !/^\s*(INITSECTION|KBSECTION|EXITSECTION|ENDEXITSECTION)\b/m.test(masked)) {
     const offset = rule.index + rule[0].lastIndexOf(rule[1]);
     return [{ offset, endOffset: offset + rule[1].length, severity: 1, code: 'bg3-goal-sections',

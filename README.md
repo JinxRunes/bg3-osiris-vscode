@@ -8,7 +8,7 @@ A BG3-focused fork of [Sebastian Lenz's Divinity Engine Script Support](https://
 - BG3 completion, parameter hints, hover, go to definition, references and document symbols.
 - API signatures and enum members read from your project's generated `story_header.div`.
 - Dependency procedures indexed from the Toolkit's `goals.raw` snapshot.
-- Live syntax diagnostics, including BG3 enum literals such as `ARMOURSET.Normal`.
+- Live syntax diagnostics, including `IFF` global rules and BG3 enum literals such as `ARMOURSET.Normal`.
 - A Story Goals tree following parent relationships between mod-owned goals.
 - **BG3 Osiris: Prepare Project from Toolkit Build** and **BG3 Osiris: Build Story** commands.
 - A build task available with **Ctrl+Shift+B**. Native compiler errors appear in Problems.
@@ -50,6 +50,10 @@ Baseline hashes are checked before every build. Edits made before preparation ar
 
 After a Toolkit/game update, dependency changes, or changes requiring new generated object definitions, generate definitions and build in the Toolkit again, then run Prepare Project again. The previous baseline is archived beside the new one. A changed compiler still requires ABI verification before it is supported. This first version does not regenerate engine definitions itself.
 
+Preparation captures the last successful Toolkit build even when an open goal is empty or unfinished. Such drafts are marked for recompilation and must be completed before Build Story can succeed. Failed preparation leaves the previous completed baseline usable. Build errors identify any source file missing its goal sections.
+
+The inspected native compiler retains `IFF` rules with a global goal reference of zero. An isolated binary regression check verifies that changing a probe from `IF` to `IFF` changes only that reference; it does not remove the rule graph. This linkage also occurs in the shipped game story. LSLib's per-goal decompiler omits rules without an owning goal, so decompiled goal text alone cannot establish whether `IFF` rules survived. This backend preserves generated source directly and does not rebuild dependencies from decompiled goals. Gameplay execution of the isolated probe has not been tested.
+
 The native compiler may refuse output even when it reports only warnings, such as an unchecked database. Those builds are reported as failed; fix the warnings before using the output.
 
 Live diagnostics check syntax; native builds are the authority for types and dependency resolution. Runtime gameplay behavior still needs testing in the game or Toolkit.
@@ -82,7 +86,7 @@ Run native integration tests against a module with a successful Toolkit build:
 python tools/test_bg3_osiris.py --project "D:\BG3\Data\Mods\MyMod_UUID" --toolkit "D:\BG3 Toolkit"
 ```
 
-Tests copy module inputs into temporary local storage. They compare the output with the Toolkit binary excluding its timestamp, compile a new BG3 enum goal, reject an invalid procedure and check its diagnostic location, and verify edits made before preparation are retained. Test stories are never installed.
+Tests copy module inputs into temporary local storage. They compare the output with the Toolkit binary excluding its timestamp, compile a new BG3 enum goal, reject an invalid procedure and check its diagnostic location, and verify edits made before preparation are retained. A separate native probe checks that `IFF` preserves the binary graph and changes its goal reference to zero. The module's existing `Story/story.div` must be from a successful Toolkit build. Test stories are never installed.
 
 The `bg3-osiris-local` publisher identifier is for local packages. Choose an owned publisher and fork repository before public Marketplace publication.
 

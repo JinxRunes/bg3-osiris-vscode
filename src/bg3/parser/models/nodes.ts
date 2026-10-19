@@ -157,7 +157,7 @@ export interface RuleNode extends AbstractNode {
   comment: string | null;
   conditions: ConditionBlockNode | null;
   region: Region | null;
-  ruleType: "IF" | "PROC" | "QRY";
+  ruleType: "IF" | "IFF" | "PROC" | "QRY";
   signature: SignatureNode;
   symbol: Symbol | null;
   type: NodeType.Rule;

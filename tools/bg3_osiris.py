@@ -78,34 +78,60 @@ def seed():
     source_files={name:STORY/('RawFiles/'+name if name in ['story_header.div','story_definitions.div'] else name) for name in SEED_FILES}
     for source in source_files.values():
         if not source.exists(): raise FileNotFoundError(str(source))
-    if CACHE.exists():
-        archived=CACHE.with_name(CACHE.name+'.previous-'+stamp())
-        assert CACHE.resolve().is_relative_to(ROOT.resolve()) and archived.resolve().is_relative_to(ROOT.resolve())
-        CACHE.rename(archived)
-    CACHE.mkdir(parents=True)
-    for name in SEED_FILES: shutil.copy2(source_files[name],CACHE/name)
-    own=goal_paths()
-    for name,path in own.items():
-        dest=CACHE/'own-goals'/path.name;dest.parent.mkdir(exist_ok=True);shutil.copy2(path,dest)
-    _, raw_records, _, _ = parse_raw(read_text(CACHE/'goals.raw'))
-    uncompiled = []
-    for name, path in own.items():
-        native_sections = dict(re.findall(r'^\t(INIT|KB|EXIT)\n\t\{\n(.*?)^\t\}',
-                                         raw_records.get(name, {}).get('block', ''), re.M | re.S))
-        current_sections, _ = source_sections(read_text(path))
-        if any(section_fingerprint(native_sections.get(key, '')) != section_fingerprint(value)
-               for key, value in current_sections.items()):
-            uncompiled.append(name)
-    metadata={'module':MODULE,'created_at':datetime.now(timezone.utc).isoformat(),
-              'native_sha256':NATIVE_SHA,'toolkit_build_summary':summary[-1],
-              'files':{name:sha(CACHE/name) for name in SEED_FILES},
-              'own_goals':{name:sha(path) for name,path in own.items()}, 'uncompiled_goals':uncompiled,
-              'toolkit_osi_sha256':sha(STORY/'story.div.osi')}
-    json_write(CACHE/'seed.json',metadata)
-    return metadata
+    # Draft goals must not prevent capturing the last successful Toolkit build.
+    # Publish only a complete snapshot; a failed refresh leaves the previous one usable.
+    preparing=CACHE.with_name(CACHE.name+'.preparing-'+stamp())
+    assert preparing.resolve().is_relative_to(ROOT.resolve())
+    preparing.mkdir(parents=True)
+    try:
+        for name in SEED_FILES: shutil.copy2(source_files[name],preparing/name)
+        own=goal_paths()
+        snapshots={}
+        for name,path in own.items():
+            dest=preparing/'own-goals'/path.name;dest.parent.mkdir(exist_ok=True);shutil.copy2(path,dest)
+            snapshots[name]=dest
+        _, raw_records, _, _ = parse_raw(read_text(preparing/'goals.raw'))
+        uncompiled = []
+        drafts = {}
+        for name, path in snapshots.items():
+            native_sections = dict(re.findall(r'^\t(INIT|KB|EXIT)\n\t\{\n(.*?)^\t\}',
+                                             raw_records.get(name, {}).get('block', ''), re.M | re.S))
+            try:
+                current_sections, _ = source_sections(read_text(path))
+            except ValueError as error:
+                drafts[name]=str(error)
+                uncompiled.append(name)
+                continue
+            if name not in raw_records or any(section_fingerprint(native_sections.get(key, '')) != section_fingerprint(value)
+                   for key, value in current_sections.items()):
+                uncompiled.append(name)
+        metadata={'module':MODULE,'created_at':datetime.now(timezone.utc).isoformat(),
+                  'native_sha256':NATIVE_SHA,'toolkit_build_summary':list(summary[-1]),
+                  'files':{name:sha(preparing/name) for name in SEED_FILES},
+                  'own_goals':{name:sha(path) for name,path in snapshots.items()},
+                  'uncompiled_goals':uncompiled, 'draft_goals':drafts,
+                  'toolkit_osi_sha256':sha(STORY/'story.div.osi')}
+        json_write(preparing/'seed.json',metadata)
+        archived=None
+        if CACHE.exists():
+            archived=CACHE.with_name(CACHE.name+'.previous-'+stamp())
+            assert CACHE.resolve().is_relative_to(ROOT.resolve()) and archived.resolve().is_relative_to(ROOT.resolve())
+            CACHE.rename(archived)
+        try:
+            preparing.rename(CACHE)
+        except OSError:
+            if archived is not None: archived.rename(CACHE)
+            raise
+        return metadata
+    finally:
+        if preparing.exists():
+            assert preparing.resolve().is_relative_to(ROOT.resolve())
+            shutil.rmtree(preparing)
 
 def baseline():
-    if not (CACHE/'seed.json').exists(): raise RuntimeError('Run seed once against the last successful Toolkit build.')
+    if not (CACHE/'seed.json').exists():
+        raise RuntimeError('No completed preparation was found for '+MODULE+'. Run "BG3 Osiris: Prepare Project from Toolkit Build" '
+                           'and check that it finishes successfully. Expected baseline: '+str(CACHE))
     m=json.loads((CACHE/'seed.json').read_text())
     for name,digest in m['files'].items():
         if sha(CACHE/name)!=digest: raise RuntimeError(f'Baseline changed: {name}')
@@ -243,7 +269,8 @@ def compile_build(install=False,own_directory=None,tag=None):
     diagnostics=[]
     for line,severity,message in re.findall(r'^line (\d+): (error|warning): (.+)$',log,re.M):
         candidates=[]
-        symbol=re.search(r'(?:procedure|function|query) "([^"]+)"',message)
+        symbol=(re.search(r'(?:procedure|function|query) "([^"]+)"',message)
+                or re.search(r'Osiris fact/proc/query ([A-Za-z_]\w*)\b',message))
         if symbol:
             for path in goal_paths(own_directory).values():
                 for number,source_line in enumerate(read_text(path).splitlines(),1):
@@ -321,7 +348,8 @@ def ensure_tools():
 
 def preflight_source(path):
     # This checks the file envelope only. Native compilation is the syntax/type authority.
-    source_sections(read_text(path))
+    try: source_sections(read_text(path))
+    except ValueError as error: raise ValueError(str(path)+': '+str(error)) from error
     return {'syntax_ok': True}
 
 
@@ -374,7 +402,10 @@ def main():
             if args.action == 'prepare':
                 print('Capturing dependency inputs from the last successful Toolkit build...', flush=True)
                 result = {'success': True, 'baseline': str(CACHE), 'seed': seed()}
+                for name, message in result['seed']['draft_goals'].items():
+                    print(f'Prepared dependencies; draft goal {name}.txt must be completed before building: {message}', flush=True)
             else:
+                baseline()
                 print('Compiling BG3 story with the installed native compiler...', flush=True)
                 result = compile_build()
                 locate_diagnostics(result)

@@ -44,6 +44,11 @@ test('current BG3 enums parse without moving source offsets or replacing strings
 test('syntax diagnostics catch missing action semicolons', () => {
   assert.ok(language.syntaxIssues(goal.replace('ARMOURSET.Normal);', 'ARMOURSET.Normal)'), language.headerEnums(header)).length > 0);
 });
+test('IFF global rules retain their keyword and accept the same rule syntax', () => {
+  const source = goal.replace('\nIF\n','\nIFF\n');
+  assert.deepEqual(language.syntaxIssues(source,language.headerEnums(header)),[]);
+  assert.equal(language.syntaxIssues('IFF\nCharacterCreationStarted()\nTHEN\nDebugLog("test");',new Map())[0].code,'bg3-goal-sections');
+});
 test('signature help ignores commas in strings and parentheses in type annotations', () => {
   const source = 'CastedSpell((CHARACTER)_Caster, "name, with comma", ';
   assert.deepEqual(language.activeCall(source, source.length), { name: 'CastedSpell', argument: 2 });

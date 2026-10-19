@@ -514,7 +514,7 @@ export default class Lexer {
         type = TokenType.ExitSectionKeyword;
       } else if (stringValue === "GoalCompleted") {
         type = TokenType.GoalCompletedKeyword;
-      } else if (stringValue === "IF") {
+      } else if (stringValue === "IF" || stringValue === "IFF") {
         type = TokenType.IfKeyword;
       } else if (stringValue === "INITSECTION") {
         type = TokenType.InitSectionKeyword;

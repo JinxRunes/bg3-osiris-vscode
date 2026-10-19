@@ -40,6 +40,7 @@ event CastedSpell((GUIDSTRING)_Caster, (STRING)_Spell, (STRING)_SpellType, (STRI
   notify('textDocument/didOpen', { textDocument: { uri, languageId: 'divinity-story-goal', version: 1, text: source } });
   const completion = await request('textDocument/completion', { textDocument: { uri }, position: { line: 5, character: 5 } });
   assert.ok(completion.some(item => item.label === 'CastedSpell'));
+  assert.ok(completion.some(item => item.label === 'IFF'));
   const hover = await request('textDocument/hover', { textDocument: { uri }, position: { line: 5, character: 3 } });
   assert.match(hover.contents.value, /_StoryActionID/);
   const signature = await request('textDocument/signatureHelp', { textDocument: { uri }, position: { line: 5, character: 24 } });
@@ -54,6 +55,11 @@ event CastedSpell((GUIDSTRING)_Caster, (STRING)_Spell, (STRING)_SpellType, (STRI
   const diagnostic = notices.filter(item => item.method === 'textDocument/publishDiagnostics' && item.params.version === 2).at(-1);
   assert.equal(diagnostic.params.diagnostics.length, 1);
   assert.equal(diagnostic.params.diagnostics[0].code, 'bg3-goal-sections');
+  notify('textDocument/didChange', { textDocument: { uri, version: 3 }, contentChanges: [{ text: source.replace('\nIF\n','\nIFF\n') }] });
+  const globalSymbols = await request('textDocument/documentSymbol', { textDocument: { uri } });
+  assert.equal(globalSymbols[0].name, 'IFF CastedSpell');
+  const globalDiagnostics=notices.filter(item=>item.method==='textDocument/publishDiagnostics' && item.params.version===3).at(-1);
+  assert.deepEqual(globalDiagnostics.params.diagnostics,[]);
   await request('shutdown', null); notify('exit');
 });
 }

@@ -4,7 +4,7 @@
   "description": "BG3 Osiris editing and native Toolkit story compilation, forked from Divinity Engine Script Support.",
   "author": "Sebastian Lenz",
   "license": "MIT",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "bg3-osiris-local",
   "categories": [
     "Programming Languages"
