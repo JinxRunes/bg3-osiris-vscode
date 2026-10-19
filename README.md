@@ -29,7 +29,7 @@ A different DLL is rejected. Supporting another Toolkit build requires checking 
 ## First build
 
 1. Install the `.vsix` with **Extensions: Install from VSIX**. Disable the original Divinity extension for this workspace if installed; both use its language IDs for compatibility.
-2. Open your module folder: `Data/Mods/YourModule_UUID`, containing `Story/RawFiles/Goals`.
+2. Open your module folder (`Data/Mods/YourModule_UUID`) or its `Story`, `RawFiles` or `Goals` subfolder. The module is detected automatically. Opening a goal file directly also supplies its module to the language service and build commands.
 3. Set **BG3 Osiris: Toolkit Path** to the directory containing the Toolkit's `Osiris.dll`.
 4. In the Toolkit, generate definitions and complete one successful Story build for this module.
 5. Run **BG3 Osiris: Prepare Project from Toolkit Build**. This captures the dependency story, header, definitions and orphan-query settings into local extension storage.
@@ -38,7 +38,9 @@ A different DLL is rejected. Supporting another Toolkit build requires checking 
 
 Builds are staged in VS Code's extension storage. They do **not** install a story into the game, reload an editor session, or package a mod. Install the output through your normal mod workflow after reviewing the successful build. A failed build produces no usable `.osi`.
 
-Set **BG3 Osiris: Project Path** explicitly when the workspace is outside the module folder. Build commands ask which module to use when several are available. The language service shares API symbols between modules in a multi-module workspace; use separate windows for modules with incompatible headers or conflicting custom symbols.
+Leave **BG3 Osiris: Project Path** empty for automatic discovery. An explicit value can point to the module or a folder inside it and overrides discovery; clear any stale value when switching modules. Build commands ask which module to use when several are available. The language service shares API symbols between modules in a multi-module workspace; use separate windows for modules with incompatible headers or conflicting custom symbols.
+
+Goal `.txt` files need the complete Osiris file structure. Type `goal` and choose the goal snippet to insert the section headers, then put `IF`, `PROC` and `QRY` rules inside `KBSECTION`. Bare rules receive one explanatory diagnostic instead of a cascade of unexpected-token errors.
 
 ## What the compiler does
 

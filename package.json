@@ -4,7 +4,7 @@
   "description": "BG3 Osiris editing and native Toolkit story compilation, forked from Divinity Engine Script Support.",
   "author": "Sebastian Lenz",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "bg3-osiris-local",
   "categories": [
     "Programming Languages"
@@ -25,6 +25,8 @@
     "onLanguage:divinity-story-goal",
     "onLanguage:divinity-story-div",
     "workspaceContains:**/Story/RawFiles/story_header.div",
+    "workspaceContains:story_header.div",
+    "workspaceContains:RawFiles/story_header.div",
     "onTaskType:bg3-osiris"
   ],
   "repository": {
@@ -45,7 +47,7 @@
         "bg3Osiris.projectPath": {
           "type": "string",
           "default": "",
-          "description": "Optional module folder containing Story/RawFiles/Goals; otherwise discovered from the workspace."
+          "description": "Optional BG3 module folder or a folder inside it. Automatically discovered from workspace folders and open goal files when empty."
         },
         "bg3Osiris.pythonPath": {
           "type": "string",
@@ -193,7 +195,7 @@
           },
           "projectPath": {
             "type": "string",
-            "description": "Absolute path to a BG3 module folder."
+            "description": "Absolute path to a BG3 module folder or a folder inside it."
           }
         }
       }

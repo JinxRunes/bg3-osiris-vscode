@@ -78,6 +78,13 @@ export function enumNormalized(text: string, enums: Map<string, Map<string, numb
 }
 
 export function syntaxIssues(text: string, enums: Map<string, Map<string, number>>): Issue[] {
+  const masked = maskComments(text, true);
+  const rule = /^\s*(IF|PROC|QRY)\b/m.exec(masked);
+  if (rule && !/^\s*(INITSECTION|KBSECTION|EXITSECTION|ENDEXITSECTION)\b/m.test(masked)) {
+    const offset = rule.index + rule[0].lastIndexOf(rule[1]);
+    return [{ offset, endOffset: offset + rule[1].length, severity: 1, code: 'bg3-goal-sections',
+      message: 'Goal rules must be inside KBSECTION. Add Version 1, SubGoalCombiner SGC_AND, INITSECTION, KBSECTION, EXITSECTION and ENDEXITSECTION. Use the "goal" snippet for a complete file.' }];
+  }
   const normalized = enumNormalized(text, enums);
   const { diagnostics } = new GoalParser(normalized.text).parse();
   return [...normalized.issues, ...diagnostics.map(d => ({ offset: d.startOffset, endOffset: d.endOffset,
@@ -105,13 +112,30 @@ export function activeCall(text: string, offset: number): { name: string; argume
   return [...stack].reverse().find(call => call.name && !/^[A-Z_]+$/.test(call.name));
 }
 
-export function findProjectRoots(roots: string[], configured?: string): string[] {
+export function findProjectRoots(roots: string[], configured?: string, documents: string[] = []): string[] {
   // Imported lazily to keep the language helpers usable without a VS Code host.
   const fs = require('node:fs') as typeof import('node:fs');
   const path = require('node:path') as typeof import('node:path');
-  const projects = new Set<string>();
+  const projects = new Map<string, string>();
+  function isProject(folder: string): boolean {
+    try { return fs.statSync(path.join(folder, 'Story/RawFiles/Goals')).isDirectory(); } catch { return false; }
+  }
+  function add(folder: string) {
+    const resolved = path.resolve(folder);
+    projects.set(process.platform === 'win32' ? resolved.toLowerCase() : resolved, resolved);
+  }
+  function ancestor(candidate: string): string | undefined {
+    let folder = path.resolve(candidate);
+    try { if (!fs.statSync(folder).isDirectory()) folder = path.dirname(folder); } catch { return; }
+    while (true) {
+      if (isProject(folder)) return folder;
+      const parent = path.dirname(folder);
+      if (parent === folder) return;
+      folder = parent;
+    }
+  }
   function walk(folder: string, depth: number) {
-    if (fs.existsSync(path.join(folder, 'Story/RawFiles/Goals'))) { projects.add(path.resolve(folder)); return; }
+    if (isProject(folder)) { add(folder); return; }
     if (depth === 0) return;
     try {
       for (const item of fs.readdirSync(folder, { withFileTypes: true })) {
@@ -119,7 +143,20 @@ export function findProjectRoots(roots: string[], configured?: string): string[]
       }
     } catch { /* Not every workspace folder is accessible. */ }
   }
-  if (configured) walk(configured, 0);
-  else for (const root of roots) walk(root, 3);
-  return [...projects].sort();
+  if (configured) {
+    const project = ancestor(configured);
+    if (project) add(project);
+  } else {
+    for (const root of roots) {
+      const project = ancestor(root);
+      if (project) add(project);
+      else walk(root, 3);
+    }
+    // A goal or generated header can be opened without opening its module as a workspace.
+    for (const document of documents) {
+      const project = ancestor(document);
+      if (project) add(project);
+    }
+  }
+  return [...projects.values()].sort();
 }

@@ -51,7 +51,7 @@ function publishGoals() {
 
 function indexWorkspace() {
   files.clear(); definitions.clear(); enumTypes.clear();
-  modules = findProjectRoots(roots, configured);
+  modules = findProjectRoots(roots, configured, documents.all().filter(d => d.uri.startsWith('file:')).map(d => fileURLToPath(d.uri)));
   for (const module of modules) {
     readFile(path.join(module, 'Story/RawFiles/story_header.div'), true);
     readFile(path.join(module, 'Story/RawFiles/story_definitions.div'), true);
@@ -111,6 +111,11 @@ connection.onDidChangeConfiguration(params => {
 documents.onDidChangeContent(({ document }) => {
   addFile(document.uri, document.getText(), document.languageId === 'divinity-story-div');
   validate(document); publishGoals();
+});
+documents.onDidOpen(({ document }) => {
+  if (!document.uri.startsWith('file:')) return;
+  const inferred = findProjectRoots([], configured, [fileURLToPath(document.uri)]);
+  if (inferred.some(module => !modules.includes(module))) indexWorkspace();
 });
 documents.onDidClose(({ document }) => {
   if (document.uri.startsWith('file:')) readFile(fileURLToPath(document.uri), document.languageId === 'divinity-story-div');

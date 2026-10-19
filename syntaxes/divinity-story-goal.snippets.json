@@ -1,4 +1,18 @@
 {
+  "BG3 goal file": {
+    "prefix": "goal",
+    "body": [
+      "Version 1",
+      "SubGoalCombiner SGC_AND",
+      "INITSECTION",
+      "KBSECTION",
+      "$0",
+      "EXITSECTION",
+      "ENDEXITSECTION",
+      "ParentTargetEdge \"${1:__Start}\""
+    ],
+    "description": "Complete BG3 Osiris goal file. Put rules inside KBSECTION."
+  },
   "AND": {
     "prefix": "AND",
     "body": [

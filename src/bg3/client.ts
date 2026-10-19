@@ -38,7 +38,8 @@ class GoalOutline implements vscode.TreeDataProvider<Goal> {
 
 function config() { return vscode.workspace.getConfiguration('bg3Osiris'); }
 function projects() {
-  return findProjectRoots((vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath), config().get<string>('projectPath'));
+  return findProjectRoots((vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath), config().get<string>('projectPath'),
+    vscode.workspace.textDocuments.filter(d => d.uri.scheme === 'file' && ['divinity-story-goal', 'divinity-story-div'].includes(d.languageId)).map(d => d.uri.fsPath));
 }
 function trusted() {
   if (!vscode.workspace.isTrusted) throw new Error('Trust this workspace before running the BG3 compiler.');
@@ -60,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const available = projects();
     if (available.length === 1) return available[0];
     if (available.length > 1) return (await vscode.window.showQuickPick(available.map(project => ({ label: path.basename(project), description: project, project }))))?.project;
-    throw new Error('Open your BG3 module folder containing Story/RawFiles/Goals, or set BG3 Osiris: Project Path.');
+    throw new Error('No BG3 module found. Open the module, its Story/RawFiles or Goals folder, or a goal file under Story/RawFiles/Goals. You can also set BG3 Osiris: Project Path to the module folder.');
   }
 
   class CompilerTerminal implements vscode.Pseudoterminal {
@@ -145,13 +146,23 @@ export async function activate(context: vscode.ExtensionContext) {
     provideTasks: () => projects().map(project => makeTask({ type: 'bg3-osiris', action: 'build', projectPath: project }, project)),
     resolveTask: task => {
       const definition = task.definition as BuildDefinition;
-      const project = definition.projectPath ?? (projects().length === 1 ? projects()[0] : undefined);
+      const available = definition.projectPath ? findProjectRoots([], definition.projectPath) : projects();
+      const project = available.length === 1 ? available[0] : undefined;
       return project && ['build', 'prepare'].includes(definition.action) ? makeTask(definition, project) : undefined;
     }
   }));
   for (const [command, action] of [['prepareProject', 'prepare'], ['buildStory', 'build']] as const) {
     context.subscriptions.push(vscode.commands.registerCommand(`bg3Osiris.${command}`, async () => {
-      try { trusted(); const project = await chooseProject(); if (project) await vscode.tasks.executeTask(makeTask({ type: 'bg3-osiris', action, projectPath: project }, project)); }
+      try {
+        trusted(); const project = await chooseProject(); if (!project) return;
+        const definition: BuildDefinition = { type: 'bg3-osiris', action, projectPath: project };
+        if (vscode.workspace.workspaceFolders?.length) await vscode.tasks.executeTask(makeTask(definition, project));
+        else {
+          // VS Code tasks require a workspace; the same compiler terminal also supports loose goal files.
+          const terminal = vscode.window.createTerminal({ name: `BG3 Osiris: ${action}`, pty: new CompilerTerminal(definition, project) });
+          context.subscriptions.push(terminal); terminal.show();
+        }
+      }
       catch (error) { void vscode.window.showErrorMessage(String(error)); }
     }));
   }
@@ -178,7 +189,10 @@ export async function activate(context: vscode.ExtensionContext) {
     { module: context.asAbsolutePath('lib/server.js'), transport: TransportKind.ipc },
     { documentSelector: [{ scheme: 'file', language: 'divinity-story-goal' }, { scheme: 'file', language: 'divinity-story-div' }],
       initializationOptions: { projectPath: config().get('projectPath'), enableDiagnostics: config().get('enableDiagnostics') },
-      synchronize: { configurationSection: 'bg3Osiris', fileEvents: vscode.workspace.createFileSystemWatcher('**/Story/{RawFiles/**,goals.raw}') } });
+      synchronize: { configurationSection: 'bg3Osiris', fileEvents: [
+        vscode.workspace.createFileSystemWatcher('**/Story/{RawFiles/**,goals.raw}'),
+        ...projects().map(project => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(path.join(project, 'Story'), '{RawFiles/**,goals.raw}')))
+      ] } });
   context.subscriptions.push(client.onNotification('bg3/goals', (goals: Goal[]) => outline.update(goals)));
   context.subscriptions.push(vscode.commands.registerCommand('bg3Osiris.refreshWorkspace', () => client?.sendNotification('bg3/refresh')));
   await client.start();

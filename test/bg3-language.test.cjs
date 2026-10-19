@@ -1,6 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const language = require('../lib/language');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const header = `alias_type {CHARACTER, 6, 5}
 enum_type {ARMOURSET, 34, 0, Normal = 0, Vanity = 1}
@@ -45,4 +47,35 @@ test('syntax diagnostics catch missing action semicolons', () => {
 test('signature help ignores commas in strings and parentheses in type annotations', () => {
   const source = 'CastedSpell((CHARACTER)_Caster, "name, with comma", ';
   assert.deepEqual(language.activeCall(source, source.length), { name: 'CastedSpell', argument: 2 });
+});
+test('bare rules explain the required goal sections without cascading token errors', () => {
+  const source = '// KBSECTION in a comment is not a section\nIF\nLeveledUp\nTHEN\nApplyStatus("DebugMode", 1);\n';
+  const issues = language.syntaxIssues(source, new Map());
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].code, 'bg3-goal-sections');
+  assert.match(issues[0].message, /KBSECTION/);
+  assert.equal(source.slice(issues[0].offset, issues[0].endOffset), 'IF');
+  const snippet = require('../syntaxes/divinity-story-goal.snippets.json')['BG3 goal file'];
+  assert.equal(snippet.prefix, 'goal');
+  const expanded = snippet.body.join('\n').replace('$0', 'IF\nLeveledUp(_Character)\nTHEN\nApplyStatus(_Character, "DebugMode", -1.0, 1, _Character);').replace('${1:__Start}', '__Start');
+  assert.deepEqual(language.syntaxIssues(expanded, new Map()), []);
+});
+test('project discovery handles module subfolders, explicit overrides, and standalone files', t => {
+  const local = path.resolve('.local'); fs.mkdirSync(local, { recursive: true });
+  const base = fs.mkdtempSync(path.join(local, 'bg3-osiris-discovery-'));
+  t.after(() => { assert.ok(base.startsWith(local + path.sep)); fs.rmSync(base, { recursive: true, force: true }); });
+  const moduleRoot = path.join(base, 'Data/Mods/Test_UUID');
+  const goals = path.join(moduleRoot, 'Story/RawFiles/Goals'); fs.mkdirSync(goals, { recursive: true });
+  const goal = path.join(goals, 'Test.txt'); fs.writeFileSync(goal, '');
+  const header = path.join(moduleRoot, 'Story/RawFiles/story_header.div'); fs.writeFileSync(header, '');
+  const inputs = [moduleRoot, path.dirname(path.dirname(goals)), path.dirname(goals), goals, goal, header];
+  for (const input of inputs) {
+    assert.deepEqual(language.findProjectRoots([input]), [moduleRoot], `workspace: ${input}`);
+    assert.deepEqual(language.findProjectRoots([], input), [moduleRoot], `configured: ${input}`);
+  }
+  assert.deepEqual(language.findProjectRoots([path.join(base, 'Data')]), [moduleRoot]);
+  assert.deepEqual(language.findProjectRoots([], undefined, [goal]), [moduleRoot]);
+  assert.deepEqual(language.findProjectRoots([goals, moduleRoot], undefined, [goal]), [moduleRoot]);
+  assert.deepEqual(language.findProjectRoots([moduleRoot], path.join(base, 'Missing'), [goal]), []);
+  assert.deepEqual(language.findProjectRoots([path.join(base, 'Missing')]), []);
 });
