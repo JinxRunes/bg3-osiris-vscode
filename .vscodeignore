@@ -8,6 +8,10 @@
 !syntaxes/**
 !resources/extension.png
 !tools/bg3_osiris.py
+!tools/osicheck_backend.py
+!tools/osicheck-worker/out/OsiCheckWorker.dll
+!tools/osicheck-worker/out/OsiCheckWorker.deps.json
+!tools/osicheck-worker/out/OsiCheckWorker.runtimeconfig.json
 !tools/native-worker/out/NativeOsirisWorker.dll
 !tools/native-worker/out/NativeOsirisWorker.deps.json
 !tools/native-worker/out/NativeOsirisWorker.runtimeconfig.json

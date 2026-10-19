@@ -15,6 +15,7 @@ const enumTypes = new Map<string, Map<string, number>>();
 const aliases = new Set(['INTEGER', 'INTEGER64', 'REAL', 'STRING', 'GUIDSTRING']);
 let roots: string[] = [], configured = '', diagnosticsEnabled = true;
 let modules: string[] = [];
+let apiHeaderPaths: string[] = [];
 let timer: NodeJS.Timeout | undefined;
 let supportsFolders = false;
 
@@ -51,6 +52,9 @@ function publishGoals() {
 
 function indexWorkspace() {
   files.clear(); definitions.clear(); enumTypes.clear();
+  aliases.clear();
+  for (const name of ['INTEGER', 'INTEGER64', 'REAL', 'STRING', 'GUIDSTRING']) aliases.add(name);
+  for (const header of apiHeaderPaths) readFile(header, true);
   modules = findProjectRoots(roots, configured, documents.all().filter(d => d.uri.startsWith('file:')).map(d => fileURLToPath(d.uri)));
   for (const module of modules) {
     readFile(path.join(module, 'Story/RawFiles/story_header.div'), true);
@@ -84,6 +88,7 @@ connection.onInitialize(params => {
   supportsFolders = !!params.capabilities.workspace?.workspaceFolders;
   roots = (params.workspaceFolders ?? []).filter(f => f.uri.startsWith('file:')).map(f => fileURLToPath(f.uri));
   configured = params.initializationOptions?.projectPath ?? '';
+  apiHeaderPaths = params.initializationOptions?.apiHeaderPaths ?? [];
   diagnosticsEnabled = params.initializationOptions?.enableDiagnostics ?? true;
   return { capabilities: {
     textDocumentSync: TextDocumentSyncKind.Full,
@@ -103,6 +108,10 @@ connection.onInitialized(() => {
   indexWorkspace();
 });
 connection.onNotification('bg3/refresh', indexWorkspace);
+connection.onNotification('bg3/apiHeaders', (params: { paths?: string[] }) => {
+  apiHeaderPaths = Array.isArray(params.paths) ? params.paths.filter(value => typeof value === 'string') : [];
+  indexWorkspace();
+});
 connection.onDidChangeWatchedFiles(() => { clearTimeout(timer); timer = setTimeout(indexWorkspace, 200); });
 connection.onDidChangeConfiguration(params => {
   const config = params.settings?.bg3Osiris;

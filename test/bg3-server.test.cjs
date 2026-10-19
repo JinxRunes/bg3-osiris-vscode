@@ -5,14 +5,15 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { fork } = require('node:child_process');
 
-for (const workspace of ['module', 'Story', 'RawFiles', 'Goals', 'standalone']) {
+for (const workspace of ['module', 'Story', 'RawFiles', 'Goals', 'standalone', 'cached-api', 'generated-api']) {
 test(`real language server discovers ${workspace} and serves BG3 editing features`, { timeout: 20000 }, async t => {
   const local = path.resolve('.local'); fs.mkdirSync(local, { recursive: true });
   const root = fs.mkdtempSync(path.join(local, 'bg3-osiris-lsp-'));
   const goals = path.join(root, 'Story/RawFiles/Goals'); fs.mkdirSync(goals, { recursive: true });
   const header = `enum_type {ARMOURSET, 34, 0, Normal = 0, Vanity = 1}
 event CastedSpell((GUIDSTRING)_Caster, (STRING)_Spell, (STRING)_SpellType, (STRING)_SpellElement, (INTEGER)_StoryActionID) (3,0,1182,1)\n`;
-  fs.writeFileSync(path.join(root, 'Story/RawFiles/story_header.div'), header);
+  const headerPath=path.join(root, ['cached-api','generated-api'].includes(workspace) ? 'cached-api.div' : 'Story/RawFiles/story_header.div');
+  fs.writeFileSync(headerPath, header);
   const source = 'Version 1\nSubGoalCombiner SGC_AND\nINITSECTION\nKBSECTION\nIF\nCastedSpell(_Caster, _, _, _, _)\nTHEN\nDebugText(_Caster, "test");\nEXITSECTION\nENDEXITSECTION\n';
   const goal = path.join(goals, 'Test.txt'); fs.writeFileSync(goal, source);
   const uri = pathToFileURL(goal).href;
@@ -34,10 +35,16 @@ event CastedSpell((GUIDSTRING)_Caster, (STRING)_Spell, (STRING)_SpellType, (STRI
     child.send({ jsonrpc: '2.0', id, method, params });
   });
   const workspacePath = { module: root, Story: path.join(root, 'Story'), RawFiles: path.dirname(goals), Goals: goals }[workspace];
-  const initialized = await request('initialize', { processId: process.pid, capabilities: {}, workspaceFolders: workspacePath ? [{ uri: pathToFileURL(workspacePath).href, name: 'Test' }] : null });
+  const initialized = await request('initialize', { processId: process.pid, capabilities: {}, workspaceFolders: workspacePath ? [{ uri: pathToFileURL(workspacePath).href, name: 'Test' }] : null,
+    initializationOptions: { apiHeaderPaths: workspace==='cached-api' ? [headerPath] : [] } });
   assert.ok(initialized.capabilities.signatureHelpProvider);
   notify('initialized', {});
   notify('textDocument/didOpen', { textDocument: { uri, languageId: 'divinity-story-goal', version: 1, text: source } });
+  if(workspace==='generated-api') {
+    const before=await request('textDocument/completion', { textDocument: { uri }, position: { line: 5, character: 5 } });
+    assert.ok(!before.some(item=>item.label==='CastedSpell'));
+    notify('bg3/apiHeaders',{paths:[headerPath]});
+  }
   const completion = await request('textDocument/completion', { textDocument: { uri }, position: { line: 5, character: 5 } });
   assert.ok(completion.some(item => item.label === 'CastedSpell'));
   assert.ok(completion.some(item => item.label === 'IFF'));

@@ -13,3 +13,6 @@ tools/__pycache__/
 tools/native-worker/bin/
 tools/native-worker/obj/
 tools/native-worker/out/
+tools/osicheck-worker/bin/
+tools/osicheck-worker/obj/
+tools/osicheck-worker/out/

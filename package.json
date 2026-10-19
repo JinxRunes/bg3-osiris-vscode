@@ -1,10 +1,10 @@
 {
   "name": "bg3-osiris-vscode",
   "displayName": "Baldur's Gate 3 Osiris",
-  "description": "BG3 Osiris editing and native Toolkit story compilation, forked from Divinity Engine Script Support.",
+  "description": "BG3 Osiris editing, OsiCheck validation and standalone story compilation, with an optional native Toolkit backend.",
   "author": "Sebastian Lenz",
   "license": "MIT",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "bg3-osiris-local",
   "categories": [
     "Programming Languages"
@@ -38,6 +38,62 @@
     "configuration": {
       "title": "BG3 Osiris",
       "properties": {
+        "bg3Osiris.compilerBackend": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "osicheck",
+            "toolkit"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            "Use OsiCheck when its path is configured; otherwise use the Toolkit.",
+            "Build with OsiCheck and extracted game dependency sources. No Toolkit compiler or Prepare Project step is needed.",
+            "Build with the Toolkit native compiler and a prepared baseline."
+          ],
+          "description": "Compiler used by Build Story. Check Story always uses OsiCheck. OsiCheck compilation is experimental until gameplay validation is complete."
+        },
+        "bg3Osiris.osiCheckPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Folder containing your supplied OsiCheck installation, or its bin folder. OsiCheck is installed separately."
+        },
+        "bg3Osiris.gameDataPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "BG3 Data folder containing Shared.pak and extracted dependency story sources under Mods. Retail packages alone are insufficient. When empty, detect it from the project path or Steam libraries."
+        },
+        "bg3Osiris.dependencyMods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Shared",
+            "SharedDev",
+            "Gustav",
+            "GustavDev",
+            "GustavX",
+            "Honour",
+            "HonourX"
+          ],
+          "description": "OsiCheck dependency module folder names in load order. The selected project is loaded last. Add required custom modules here."
+        },
+        "bg3Osiris.osiCheckKnownVanillaIssues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "DB_BUGFIX_Marker(4)",
+            "DB_BUGFIX_Marker_GUS309397(3)",
+            "DB_Hirelings_DialogFlagsVars(5)",
+            "DB_BUGFIX_Marker_GUSX9096(2)"
+          ],
+          "description": "Exact vanilla unused-database exemptions supplied with OsiCheck. Exemptions are reported and are not applied when the project mentions that database. An empty list disables them."
+        },
         "bg3Osiris.toolkitPath": {
           "type": "string",
           "default": "",
@@ -59,16 +115,21 @@
           "type": "string",
           "default": "dotnet",
           "scope": "machine-overridable",
-          "description": ".NET 10 runtime executable for the isolated native compiler worker."
+          "description": ".NET executable. OsiCheck requires .NET 8 or newer; the native Toolkit worker requires .NET 10."
         },
         "bg3Osiris.enableDiagnostics": {
           "type": "boolean",
           "default": true,
-          "description": "Show syntax diagnostics while editing. Native builds provide authoritative type checking."
+          "description": "Show syntax diagnostics while editing. Use Check Story or Build Story for compiler type checking."
         }
       }
     },
     "commands": [
+      {
+        "command": "bg3Osiris.checkStory",
+        "title": "Check Story (OsiCheck)",
+        "category": "BG3 Osiris"
+      },
       {
         "command": "bg3Osiris.prepareProject",
         "title": "Prepare Project from Toolkit Build",
@@ -190,12 +251,21 @@
             "type": "string",
             "enum": [
               "prepare",
+              "check",
               "build"
             ]
           },
           "projectPath": {
             "type": "string",
             "description": "Absolute path to a BG3 module folder or a folder inside it."
+          },
+          "backend": {
+            "type": "string",
+            "enum": [
+              "osicheck",
+              "toolkit"
+            ],
+            "description": "Optional compiler override for this task. Check uses OsiCheck and Prepare uses the Toolkit."
           }
         }
       }
@@ -215,7 +285,8 @@
     "test": "node --test test/bg3-*.test.cjs",
     "test:compiler": "python tools/test_bg3_osiris.py",
     "build:native": "dotnet build tools/native-worker/NativeOsirisWorker.csproj -c Release -o tools/native-worker/out --nologo",
-    "vscode:prepublish": "npm run compile && npm run build:native",
+    "build:osicheck": "dotnet build tools/osicheck-worker/OsiCheckWorker.csproj -c Release -o tools/osicheck-worker/out --nologo",
+    "vscode:prepublish": "npm run compile && npm run build:native && npm run build:osicheck",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
@@ -233,7 +304,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Editing is available; native compilation requires a trusted workspace."
+      "description": "Editing is available; compiler checks and builds require a trusted workspace."
     },
     "virtualWorkspaces": false
   }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Add OsiCheck check/build commands and task selection without loading the Toolkit compiler or requiring a preparation step.
+- Resolve the compiler from a separately installed OsiCheck folder and load extracted dependency headers and goals alongside game packages.
+- Reject retail packages alone with an explanation of the missing source inputs; do not rebuild dependencies from lossy decompiled stories.
+- Snapshot inputs, preserve ordinary compiler errors, and report exact vanilla database exemptions.
+- Verify rule counts, global IFF links and enum table counts in saved stories before reporting success.
+- Refresh API completion from the game header after standalone checks and builds.
+- Retain the native Toolkit backend and existing preparation/storage workflow.
+
 ## 0.1.2
 
 - Allow preparation with empty or unfinished goal files, marking drafts for compilation.
