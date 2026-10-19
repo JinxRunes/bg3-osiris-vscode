@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import json
+import story_install
 from pathlib import Path
 import re
 import shutil
@@ -47,9 +48,19 @@ def game_data(project, configured=''):
     raise ValueError('Set BG3 Osiris: Game Data Path to the game Data folder containing Shared.pak. A Toolkit installation is not required.')
 
 
-def run(action, project, osicheck_path, state_dir, data_path='', dotnet='dotnet', base_mods=None, exemptions=None, package_only=False):
+def run(action, project, osicheck_path, state_dir, data_path='', dotnet='dotnet', base_mods=None, exemptions=None, package_only=False, install=False):
+    if action == 'rollback':
+        shared.configure(Path(project).resolve(), Path(project).resolve(), state_dir, dotnet)
+        with shared.locked():
+            latest=json.loads((shared.ROOT/('last-installed.json' if (shared.ROOT/'last-installed.json').is_file() else 'last-build.json')).read_text(encoding='utf-8'))
+            folder=Path(latest['build']).resolve()
+            if not folder.is_relative_to(shared.BUILDS.resolve()): raise ValueError('The last build is outside this project build store.')
+            return story_install.rollback(Path(project).resolve(), folder)
     if action not in ['check', 'build']: raise ValueError('OsiCheck supports check and build actions.')
     project = Path(project).resolve()
+    if install and action != 'build': raise ValueError('Only builds can be installed.')
+    inputs=story_install.inventory(project)
+    outputs=story_install.working_hashes(project)
     libraries = library_dir(osicheck_path)
     data = game_data(project, data_path)
     # Shared locking and storage helpers do not load or require a Toolkit DLL.
@@ -101,6 +112,10 @@ def run(action, project, osicheck_path, state_dir, data_path='', dotnet='dotnet'
                     assert artifact.resolve().is_relative_to(directory.resolve())
                     artifact.unlink()
         report['compiled_osi_sha256'] = shared.sha(output) if output.is_file() else None
+        report['input_sha256']=inputs
+        if install:
+            story_install.install(project,directory,report,inputs,outputs)
+            if report.get('installed'): shared.json_write(shared.ROOT/'last-installed.json',report)
         header=directory/'story_header.div'
         if report.get('header_file') and header.is_file():
             cached=shared.ROOT/'osicheck-api-header.div'
@@ -121,7 +136,7 @@ def run(action, project, osicheck_path, state_dir, data_path='', dotnet='dotnet'
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['check', 'build'])
+    parser.add_argument('action', choices=['check', 'build', 'rollback'])
     parser.add_argument('--project', required=True, type=Path)
     parser.add_argument('--osicheck', required=True)
     parser.add_argument('--state-dir', required=True, type=Path)
@@ -130,12 +145,13 @@ def main():
     parser.add_argument('--base-mods', type=json.loads, default=DEFAULT_MODS)
     parser.add_argument('--known-vanilla-issues', type=json.loads, default=DEFAULT_EXEMPTIONS)
     parser.add_argument('--packages-only', action='store_true', help='Load dependencies from game packages only; still load the selected project sources.')
+    parser.add_argument('--install', action='store_true')
     args = parser.parse_args()
     for values in [args.base_mods, args.known_vanilla_issues]:
         if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
             raise ValueError('Dependency modules and known vanilla issues must be arrays of strings.')
     result = run(args.action, args.project, args.osicheck, args.state_dir, args.game_data, args.dotnet,
-                 args.base_mods, args.known_vanilla_issues, args.packages_only)
+                 args.base_mods, args.known_vanilla_issues, args.packages_only, args.install)
     print('BG3_RESULT ' + json.dumps(result), flush=True)
     return 0 if result['success'] else 1
 

@@ -8,6 +8,7 @@
 !syntaxes/**
 !resources/extension.png
 !tools/bg3_osiris.py
+!tools/story_install.py
 !tools/osicheck_backend.py
 !tools/osicheck-worker/out/OsiCheckWorker.dll
 !tools/osicheck-worker/out/OsiCheckWorker.deps.json

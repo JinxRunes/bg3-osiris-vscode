@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { spawn, execFile, type ChildProcess } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import { LanguageClient, TransportKind } from 'vscode-languageclient/node';
 import { findProjectRoots } from './language';
 import { compilerInvocation } from './compiler';
 
 interface Goal { uri: string; name: string; parents: string[]; module: string }
-interface BuildDefinition extends vscode.TaskDefinition { type: 'bg3-osiris'; action: 'prepare' | 'check' | 'build'; projectPath?: string; backend?: 'osicheck' | 'toolkit' }
+interface BuildDefinition extends vscode.TaskDefinition { type: 'bg3-osiris'; action: 'prepare' | 'check' | 'build'; projectPath?: string; backend?: 'osicheck' | 'toolkit'; install?: boolean }
 interface BuildReport {
   success: boolean; error?: string; build?: string; errors?: number; warnings?: number; compiler?: string; action?: string; header_file?: string;
   diagnostics?: { file?: string; line?: number; column?: number; severity: string; message: string }[];
@@ -38,6 +38,14 @@ class GoalOutline implements vscode.TreeDataProvider<Goal> {
 }
 
 function config() { return vscode.workspace.getConfiguration('bg3Osiris'); }
+async function ensureJinxTools(): Promise<void> {
+  const ready=async()=>{try { const response=await fetch('http://127.0.0.1:43127/api/config',{signal:AbortSignal.timeout(1500)});const value=await response.json() as {unifiedPipeline?:boolean};return value.unifiedPipeline===true;}catch{return false;}};
+  if(await ready())return;
+  const launcher=path.join(config().get<string>('toolkitPath')||'','DialogueStudio','launch.mjs');
+  if(!path.isAbsolute(launcher)||!fs.existsSync(launcher))throw new Error('Set Toolkit Path to the installation containing Jinx Tools / DialogueStudio.');
+  await new Promise<void>((resolve,reject)=>execFile('node',[launcher,'--no-open'],{windowsHide:true,timeout:15000},error=>error?reject(error):resolve()));
+  if(!await ready())throw new Error('Restart the local Jinx Tools authoring service to load the unified pipeline.');
+}
 function projects() {
   return findProjectRoots((vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath), config().get<string>('projectPath'),
     vscode.workspace.textDocuments.filter(d => d.uri.scheme === 'file' && ['divinity-story-goal', 'divinity-story-div'].includes(d.languageId)).map(d => d.uri.fsPath));
@@ -52,6 +60,10 @@ export async function activate(context: vscode.ExtensionContext) {
   const outline = new GoalOutline();
   context.subscriptions.push(output, diagnostics, outline, vscode.window.registerTreeDataProvider('bg3Osiris.goals', outline));
   const lastBuild = new Map<string, string>();
+  async function sharedRequest(endpoint:string,body:unknown):Promise<any>{const response=await fetch('http://127.0.0.1:43127/api/'+endpoint,{method:'POST',headers:{'Content-Type':'application/json','Origin':'http://127.0.0.1:43127'},body:JSON.stringify(body),signal:AbortSignal.timeout(25000)});const result=await response.json() as any;if(!response.ok)throw new Error(result.error||'Jinx Tools request failed.');return result;}
+  const editorSession=randomUUID();let polling=false;
+  const sessionTimer=setInterval(async()=>{if(polling||!vscode.workspace.isTrusted)return;polling=true;try{for(const project of projects()){const module=path.basename(project),{task}=await sharedRequest('editors/poll',{module,id:editorSession,kind:'vscode'});if(task){try{if(!await vscode.workspace.saveAll(false))throw new Error('Some VS Code files could not be saved.');await sharedRequest('editors/reply',{module,id:editorSession,requestId:task.id});}catch(error){await sharedRequest('editors/reply',{module,id:editorSession,requestId:task.id,error:String(error)});}}}}catch{}finally{polling=false;}},1500);context.subscriptions.push({dispose:()=>clearInterval(sessionTimer)});
+
 
   function stateDir(project: string) {
     const id = createHash('sha256').update(path.resolve(project).toLowerCase()).digest('hex').slice(0, 20);
@@ -87,16 +99,25 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     private write(text: string) { if (!this.closed) { this.writeEvent.fire(text.replace(/\r?\n/g, '\r\n')); output.append(text); } }
     private finish(code: number) { if (!this.closed) this.closeEvent.fire(code); }
+    private async runSharedBuild(){
+      await ensureJinxTools();const current=await sharedRequest('pipeline/configuration',{}),value=(key:string,fallback:any)=>config().get<any>(key)||fallback;
+      await sharedRequest('pipeline/configure',{backend:value('compilerBackend',current.backend),toolkitPath:value('toolkitPath',current.toolkitPath),extensionPath:context.extensionPath,gameDataPath:value('gameDataPath',current.gameDataPath),pythonPath:value('pythonPath',current.pythonPath),dotnetPath:value('dotnetPath',current.dotnetPath),osicheckPath:value('osiCheckPath',current.osicheckPath),dependencies:config().get<string[]>('dependencyMods')||current.dependencies});
+      const module=path.basename(this.project);let job=await sharedRequest('pipeline/start',{module,action:'build',install:this.definition.install===true}),lines=0;diagnostics.clear();output.clear();
+      while(job.status==='running'&&!this.closed){await new Promise(resolve=>setTimeout(resolve,900));job=await sharedRequest('pipeline/status',{module,id:job.id});for(const line of job.log.slice(lines))this.write(line+'\n');lines=job.log.length;}
+      if(this.closed)return;const report=job.result as BuildReport|undefined;if(report?.build)lastBuild.set(this.project,report.build);for(const item of report?.diagnostics||[]){if(!item.file)continue;const row=Math.max(0,(item.line||1)-1),entry=new vscode.Diagnostic(new vscode.Range(row,0,row,1000),item.message,item.severity==='warning'?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error);entry.source='Jinx Tools shared build';diagnostics.set(vscode.Uri.file(item.file),[...(diagnostics.get(vscode.Uri.file(item.file))||[]),entry]);}
+      if(job.status!=='complete'){this.write((job.error||'Shared build failed.')+'\n');output.show(true);}else this.write('Build recorded in Jinx Tools shared history.\n');this.finish(job.status==='complete'?0:1);
+    }
     private async run() {
       trusted();
       if (process.platform !== 'win32') throw new Error('The packaged BG3 compiler integrations currently require Windows x64.');
       if (!await vscode.workspace.saveAll(false)) throw new Error('Save the modified files before compiling.');
+      if(this.definition.action==='build')return this.runSharedBuild();
       const { backend, args } = compilerInvocation({ action: this.definition.action, backend: this.definition.backend,
         selected: config().get<string>('compilerBackend'), extension: context.extensionPath,
         project: this.project, state: stateDir(this.project), toolkit: config().get<string>('toolkitPath'),
         osicheck: config().get<string>('osiCheckPath'), gameData: config().get<string>('gameDataPath'),
         dotnet: config().get<string>('dotnetPath'), dependencies: config().get<string[]>('dependencyMods'),
-        vanillaIssues: config().get<string[]>('osiCheckKnownVanillaIssues') });
+        vanillaIssues: config().get<string[]>('osiCheckKnownVanillaIssues'), install:this.definition.install });
       diagnostics.clear(); output.clear();
       this.write(`BG3 Osiris: ${this.definition.action} ${path.basename(this.project)} (${backend})\n`);
       let pending = '', report: BuildReport | undefined;
@@ -157,11 +178,11 @@ export async function activate(context: vscode.ExtensionContext) {
       return project && ['check', 'build', 'prepare'].includes(definition.action) ? makeTask(definition, project) : undefined;
     }
   }));
-  for (const [command, action] of [['prepareProject', 'prepare'], ['checkStory', 'check'], ['buildStory', 'build']] as const) {
+  for (const [command, action] of [['prepareProject', 'prepare'], ['checkStory', 'check'], ['buildStory', 'build'], ['buildAndInstallStory','build']] as const) {
     context.subscriptions.push(vscode.commands.registerCommand(`bg3Osiris.${command}`, async () => {
       try {
         trusted(); const project = await chooseProject(); if (!project) return;
-        const definition: BuildDefinition = { type: 'bg3-osiris', action, projectPath: project };
+        const definition: BuildDefinition = { type: 'bg3-osiris', action, projectPath: project, install:command==='buildAndInstallStory' };
         if (vscode.workspace.workspaceFolders?.length) await vscode.tasks.executeTask(makeTask(definition, project));
         else {
           // VS Code tasks require a workspace; the same compiler terminal also supports loose goal files.
@@ -172,10 +193,19 @@ export async function activate(context: vscode.ExtensionContext) {
       catch (error) { void vscode.window.showErrorMessage(String(error)); }
     }));
   }
+  context.subscriptions.push(vscode.commands.registerCommand('bg3Osiris.updateGameContent', async () => {
+    try { trusted(); if(!await vscode.workspace.saveAll(false)) throw new Error('Save the modified files first.');
+      const project=await chooseProject(); if(!project)return;
+      await ensureJinxTools();
+      const response=await fetch('http://127.0.0.1:43127/api/pipeline/start',{method:'POST',headers:{'Content-Type':'application/json','Origin':'http://127.0.0.1:43127'},body:JSON.stringify({module:path.basename(project),action:'update'})});
+      if(!response.ok){const result=await response.json() as {error?:string};throw new Error(result.error||'The game content update could not start.');}
+      await vscode.env.openExternal(vscode.Uri.parse('http://127.0.0.1:43127/pipeline?mod='+encodeURIComponent(path.basename(project))));
+    } catch(error) { void vscode.window.showErrorMessage(String(error)); }
+  }));
   context.subscriptions.push(vscode.commands.registerCommand('bg3Osiris.showBuildOutput', async () => {
     try {
       const project = await chooseProject(); if (!project) return;
-      let folder = lastBuild.get(project);
+      await ensureJinxTools();const history=await sharedRequest('pipeline/history',{module:path.basename(project)});let folder=history.runs?.find((run:any)=>run.result?.build)?.result.build||lastBuild.get(project);
       if (!folder) {
         const report = path.join(stateDir(project), 'last-build.json');
         if (fs.existsSync(report)) folder = JSON.parse(fs.readFileSync(report, 'utf8')).build;
@@ -184,6 +214,7 @@ export async function activate(context: vscode.ExtensionContext) {
       else void vscode.window.showInformationMessage('Build this project first.');
     } catch (error) { void vscode.window.showErrorMessage(String(error)); }
   }));
+  context.subscriptions.push(vscode.commands.registerCommand('bg3Osiris.openStudioOrigin',async()=>{try{const editor=vscode.window.activeTextEditor,project=await chooseProject();if(!editor||!project)return;await ensureJinxTools();const result=await sharedRequest('pipeline/origin',{module:path.basename(project),file:editor.document.uri.fsPath,line:editor.selection.active.line+1});if(result.origin)await vscode.env.openExternal(vscode.Uri.parse('http://127.0.0.1:43127'+result.origin.url));else void vscode.window.showInformationMessage('This line has no registered Studio origin.');}catch(error){void vscode.window.showErrorMessage(String(error));}}));
   context.subscriptions.push(vscode.commands.registerCommand('bg3Osiris.openApiDocumentation', async () => {
     const editor = vscode.window.activeTextEditor;
     const range = editor?.document.getWordRangeAtPosition(editor.selection.active, /[A-Za-z_]\w*/);

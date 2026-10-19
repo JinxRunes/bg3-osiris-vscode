@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import uuid
+import story_install
 
 NATIVE_SHA = '340d688aca31cc399c4639529a3381f1a7e57e489d7501dbc337eff90a91e6fc'
 COMPILE_SUMMARY = re.compile(r'(\d+) error\(s\),\s*(\d+) warning\(s\)\. Compilation ended\.')
@@ -236,9 +237,16 @@ def assemble(directory,own_directory=None):
         if name in ids: chunks.append(f'Goal({ids[name]}).SubGoals(AND);\n')
     raw=''.join(chunks)
     write_text(directory/'goals.raw',raw)
-    header=read_text(CACHE/'story_header.div');definitions=read_text(CACHE/'story_definitions.div')
+    # Native content publication can refresh definitions without rebuilding story.
+    # Keep the immutable dependency seed, but compile the current native headers.
+    header_file=STORY/'RawFiles/story_header.div'
+    definitions_file=STORY/'RawFiles/story_definitions.div'
+    if not header_file.is_file():header_file=CACHE/'story_header.div'
+    if not definitions_file.is_file():definitions_file=CACHE/'story_definitions.div'
+    header=read_text(header_file);definitions=read_text(definitions_file)
     write_text(directory/'story.div',header+'\n'+definitions+'\n'+raw+'\n')
     for name in SEED_FILES[1:]: shutil.copy2(CACHE/name,directory/name)
+    shutil.copy2(header_file,directory/'story_header.div');shutil.copy2(definitions_file,directory/'story_definitions.div')
     json_write(directory/'source-map.json',{'header_lines':header.count('\n')+1+definitions.count('\n')+1,
                'goals':source_map,'changed_goal_sections':mapping})
     return {name:sha(path) for name,path in own.items()}
@@ -246,6 +254,8 @@ def assemble(directory,own_directory=None):
 def compile_build(install=False,own_directory=None,tag=None):
     own_directory = GOALS if own_directory is None else own_directory
     ensure_tools();directory=BUILDS/(stamp()+('-'+tag if tag else ''));directory.mkdir(parents=True)
+    before_inputs=story_install.inventory(STORY.parent) if install else None
+    before_outputs=story_install.working_hashes(STORY.parent) if install else None
     sources=assemble(directory,own_directory)
     # Snapshot the known-good artifact before compiling, for exact failure checks.
     deployed_before=sha(STORY/'story.div.osi') if (STORY/'story.div.osi').exists() else None
@@ -279,33 +289,9 @@ def compile_build(install=False,own_directory=None,tag=None):
         diagnostics.append({'compiler_line':int(line),'severity':severity,'message':message,'source_candidates':candidates})
     report['diagnostics']=diagnostics
     if install:
-        if not success:
-            report['working_osi_unchanged']=((sha(STORY/'story.div.osi') if (STORY/'story.div.osi').exists() else None)==deployed_before)
-            json_write(directory/'report.json',report);json_write(ROOT/'last-build.json',report)
-            return report
         if own_directory!=GOALS: raise RuntimeError('Only the real active module can be installed.')
-        now={name:sha(path) for name,path in goal_paths().items()}
-        if now!=sources: raise RuntimeError('Goal sources changed during build; no output was installed.')
-        if (sha(STORY/'story.div.osi') if (STORY/'story.div.osi').exists() else None)!=deployed_before:
-            raise RuntimeError('Another build changed the working story; output was not installed.')
-        backup=BACKUPS/'builds'/directory.name;backup.mkdir(parents=True)
-        files=['story.div','goals.raw','log.txt','story.div.osi']
-        before={}
-        for name in files:
-            dest=STORY/name
-            if dest.exists(): shutil.copy2(dest,backup/name);before[name]=sha(dest)
-        replaced=[]
-        try:
-            for name in files:
-                target=STORY/name;temporary=target.with_name(target.name+'.osiris-chat-tmp')
-                shutil.copy2(directory/name,temporary);os.replace(temporary,target);replaced.append(name)
-        except OSError:
-            for name in reversed(replaced):
-                if name in before: shutil.copy2(backup/name,STORY/name)
-                else: (STORY/name).unlink(missing_ok=True)
-            raise
-        report.update(installed=True,backup=str(backup),previous_hashes=before,
-                      installed_hashes={name:sha(STORY/name) for name in files})
+        story_install.install(STORY.parent,directory,report,before_inputs,before_outputs)
+        if report.get('installed'): json_write(ROOT/'last-installed.json',report)
     report['working_osi_unchanged']=((sha(STORY/'story.div.osi') if (STORY/'story.div.osi').exists() else None)==deployed_before)
     json_write(directory/'report.json',report)
     json_write(ROOT/'last-build.json',report)
@@ -386,14 +372,25 @@ def locate_diagnostics(report):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['prepare', 'build', 'status'])
+    parser.add_argument('action', choices=['prepare', 'build', 'status', 'rollback'])
     parser.add_argument('--project', required=True, type=Path)
     parser.add_argument('--toolkit', required=True, type=Path)
     parser.add_argument('--state-dir', type=Path)
     parser.add_argument('--dotnet', default='dotnet')
+    parser.add_argument('--install', action='store_true')
+    parser.add_argument('--prepare-if-needed', action='store_true')
     args = parser.parse_args()
     configure(args.project, args.toolkit, args.state_dir, args.dotnet)
     ensure_tools()
+    if args.install and args.action != 'build':
+        raise ValueError('Only a successful build can be installed.')
+    if args.action == 'rollback':
+        latest=json.loads((ROOT/('last-installed.json' if (ROOT/'last-installed.json').is_file() else 'last-build.json')).read_text(encoding='utf-8'))
+        folder=Path(latest['build']).resolve()
+        if not folder.is_relative_to(BUILDS.resolve()): raise ValueError('The last build is outside this project build store.')
+        result=story_install.rollback(STORY.parent,folder)
+        print('BG3_RESULT '+json.dumps(result),flush=True)
+        return 0
     if args.action == 'status':
         result = {'success': True, 'module': MODULE, 'prepared': (CACHE / 'seed.json').is_file(),
                   'native_compiler_sha256': NATIVE_SHA, 'state_dir': str(ROOT)}
@@ -405,13 +402,20 @@ def main():
                 for name, message in result['seed']['draft_goals'].items():
                     print(f'Prepared dependencies; draft goal {name}.txt must be completed before building: {message}', flush=True)
             else:
+                if args.prepare_if_needed and not (CACHE/'seed.json').is_file(): seed()
                 baseline()
+                inputs=story_install.inventory(STORY.parent)
+                outputs=story_install.working_hashes(STORY.parent)
                 print('Compiling BG3 story with the installed native compiler...', flush=True)
                 result = compile_build()
                 locate_diagnostics(result)
                 current = {name: sha(path) for name, path in goal_paths().items()}
                 if current != result['source_sha256']:
                     result.update(success=False, error='Goal sources changed during compilation. Build again.')
+                result['input_sha256']=inputs
+                if args.install:
+                    story_install.install(STORY.parent,Path(result['build']),result,inputs,outputs)
+                    if result.get('installed'): json_write(ROOT/'last-installed.json',result)
                 json_write(Path(result['build']) / 'report.json', result)
                 json_write(ROOT / 'last-build.json', result)
                 for item in result['diagnostics']:

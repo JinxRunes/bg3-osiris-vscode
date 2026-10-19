@@ -7,6 +7,7 @@ interface CompilerSettings {
   action: CompilerAction; backend?: CompilerBackend; selected?: string;
   extension: string; project: string; state: string; toolkit?: string; osicheck?: string;
   gameData?: string; dotnet?: string; dependencies?: string[]; vanillaIssues?: string[];
+  install?: boolean;
 }
 
 export function compilerInvocation(settings: CompilerSettings): { backend: CompilerBackend; args: string[] } {
@@ -14,6 +15,7 @@ export function compilerInvocation(settings: CompilerSettings): { backend: Compi
   const backend: CompilerBackend = settings.action === 'check' ? 'osicheck' : settings.action === 'prepare' ? 'toolkit'
     : selected === 'auto' ? (settings.osicheck ? 'osicheck' : 'toolkit') : selected === 'osicheck' ? 'osicheck' : 'toolkit';
   const common = ['--project', settings.project, '--state-dir', settings.state, '--dotnet', settings.dotnet ?? 'dotnet'];
+  if(settings.install) { if(settings.action!=='build') throw new Error('Only a successful build can be installed.'); common.push('--install'); }
   if (backend === 'osicheck') {
     if (!settings.osicheck) throw new Error('Set BG3 Osiris: OsiCheck Path to your OsiCheck folder. This backend does not need the Toolkit.');
     return { backend, args: ['-u', path.join(settings.extension, 'tools/osicheck_backend.py'), settings.action,
@@ -24,5 +26,5 @@ export function compilerInvocation(settings: CompilerSettings): { backend: Compi
   if (!settings.toolkit || !fs.existsSync(path.join(settings.toolkit, 'Osiris.dll')))
     throw new Error('Set OsiCheck Path for Toolkit-independent builds, or set Toolkit Path to the folder containing Osiris.dll.');
   return { backend, args: ['-u', path.join(settings.extension, 'tools/bg3_osiris.py'), settings.action,
-    ...common, '--toolkit', settings.toolkit] };
+    ...common, '--toolkit', settings.toolkit, ...(settings.action==='build'?['--prepare-if-needed']:[])] };
 }

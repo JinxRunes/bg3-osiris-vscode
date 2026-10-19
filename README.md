@@ -13,6 +13,8 @@ A BG3-focused fork of [Sebastian Lenz's Divinity Engine Script Support](https://
 - **BG3 Osiris: Check Story (OsiCheck)** and **BG3 Osiris: Build Story** commands, with source diagnostics in Problems.
 - A build task available with **Ctrl+Shift+B**, plus a Check Story task.
 - Real `story.div.osi` output from either OsiCheck or the installed Toolkit's native compiler.
+- **Build and Install Story** installs only successful, unchanged builds with backups. Ordinary **Build Story** keeps outputs in staging.
+- **Update Game Content (Jinx Tools)** starts our shared authoring update and opens its progress page. Native resource updates use the running Toolkit through Jinx Tools; the Story Editor does not need to be opened.
 
 ## Requirements
 
@@ -124,7 +126,7 @@ python tools/test_bg3_osiris.py --project "D:\BG3\Data\Mods\MyMod_UUID" --toolki
 
 Tests copy module inputs into temporary local storage. They compare the output with the Toolkit binary excluding its timestamp, compile a new BG3 enum goal, reject an invalid procedure and check its diagnostic location, and verify edits made before preparation are retained. A separate native probe checks that `IFF` preserves the binary graph and changes its goal reference to zero. The module's existing `Story/story.div` must be from a successful Toolkit build. Test stories are never installed.
 
-The `bg3-osiris-local` publisher identifier is for local packages. Choose an owned publisher and fork repository before public Marketplace publication.
+The Marketplace publisher is `jinx`. This BG3 fork is maintained at [JinxRunes/bg3-osiris-vscode](https://github.com/JinxRunes/bg3-osiris-vscode); report extension issues there. The separately installed OsiCheck distribution and local build storage are excluded from source control.
 
 ## Attribution and scope
 

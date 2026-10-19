@@ -4,8 +4,8 @@
   "description": "BG3 Osiris editing, OsiCheck validation and standalone story compilation, with an optional native Toolkit backend.",
   "author": "Sebastian Lenz",
   "license": "MIT",
-  "version": "0.2.0",
-  "publisher": "bg3-osiris-local",
+  "version": "0.4.0",
+  "publisher": "jinx",
   "categories": [
     "Programming Languages"
   ],
@@ -31,8 +31,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/sebastian-lenz/divinity-vscode.git"
+    "url": "https://github.com/JinxRunes/bg3-osiris-vscode.git"
   },
+  "bugs": {
+    "url": "https://github.com/JinxRunes/bg3-osiris-vscode/issues"
+  },
+  "homepage": "https://github.com/JinxRunes/bg3-osiris-vscode#readme",
   "main": "./lib/client.js",
   "contributes": {
     "configuration": {
@@ -154,6 +158,21 @@
         "command": "bg3Osiris.refreshWorkspace",
         "title": "Refresh Project Index",
         "category": "BG3 Osiris"
+      },
+      {
+        "command": "bg3Osiris.buildAndInstallStory",
+        "title": "Build and Install Story",
+        "category": "BG3 Osiris"
+      },
+      {
+        "command": "bg3Osiris.updateGameContent",
+        "title": "Update Game Content (Jinx Tools)",
+        "category": "BG3 Osiris"
+      },
+      {
+        "command": "bg3Osiris.openStudioOrigin",
+        "title": "Open Originating Studio Node",
+        "category": "BG3 Osiris"
       }
     ],
     "languages": [
@@ -197,6 +216,11 @@
       "editor/context": [
         {
           "command": "bg3Osiris.openApiDocumentation",
+          "when": "editorLangId == divinity-story-goal",
+          "group": "navigation"
+        },
+        {
+          "command": "bg3Osiris.openStudioOrigin",
           "when": "editorLangId == divinity-story-goal",
           "group": "navigation"
         }
@@ -266,6 +290,11 @@
               "toolkit"
             ],
             "description": "Optional compiler override for this task. Check uses OsiCheck and Prepare uses the Toolkit."
+          },
+          "install": {
+            "type": "boolean",
+            "default": false,
+            "description": "Install a successful build with guarded backups. Failed builds preserve the working story."
           }
         }
       }

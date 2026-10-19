@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- Prepare the public Marketplace release under publisher `jinx` and link the JinxRunes source repository and issue tracker.
+
+## 0.3.0
+
+- Add Build and Install Story with source/output conflict checks, installation backups and recoverable story rollback.
+- Add Update Game Content (Jinx Tools): save files, start the local authoring service, launch the shared project update and show progress.
+- Share both compiler backends with the authoring pipeline without requiring the Story Editor.
+- Automatically prepare native dependencies from an existing successful native baseline when needed; use current project headers and definitions.
+- Preserve staged behavior for ordinary Build Story and preserve the last installed receipt after later failed builds.
+
 ## 0.2.0
 
 - Add OsiCheck check/build commands and task selection without loading the Toolkit compiler or requiring a preparation step.

@@ -9,6 +9,9 @@ node_modules
 
 .npm-cache/
 .local/
+
+# Separately supplied compiler distribution and local configuration.
+/OsiCheck/
 tools/__pycache__/
 tools/native-worker/bin/
 tools/native-worker/obj/
