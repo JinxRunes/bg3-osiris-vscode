@@ -6,3 +6,10 @@ lib
 node_modules
 
 *.vsix
+
+.npm-cache/
+.local/
+tools/__pycache__/
+tools/native-worker/bin/
+tools/native-worker/obj/
+tools/native-worker/out/

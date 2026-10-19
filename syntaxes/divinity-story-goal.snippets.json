@@ -1,22 +1,52 @@
 {
   "AND": {
     "prefix": "AND",
-    "body": ["AND", "$0"],
+    "body": [
+      "AND",
+      "$0"
+    ],
     "description": "And condition"
   },
   "IF": {
     "prefix": "IF",
-    "body": ["IF", "$0", "THEN"],
+    "body": [
+      "IF",
+      "$0",
+      "THEN"
+    ],
     "description": "Rule definition"
   },
   "PROC": {
     "prefix": "PROC",
-    "body": ["PROC", "$0", "THEN"],
+    "body": [
+      "PROC",
+      "$0",
+      "THEN"
+    ],
     "description": "Procedure definition"
   },
   "QRY": {
     "prefix": "QRY",
-    "body": ["QRY", "$0", "THEN", "DB_NOOP(1);"],
+    "body": [
+      "QRY",
+      "$0",
+      "THEN",
+      "DB_NOOP(1);"
+    ],
     "description": "Query definition"
+  },
+  "BG3 gold check on cast": {
+    "prefix": "bg3-gold-on-cast",
+    "body": [
+      "IF",
+      "CastedSpell(_Caster, _, _, _, _)",
+      "AND",
+      "GetGold(_Caster, _Gold)",
+      "AND",
+      "_Gold >= ${1:1000}",
+      "THEN",
+      "DebugText(_Caster, \"${2:Gold threshold reached}\");"
+    ],
+    "description": "Check carried gold after a successful BG3 cast."
   }
 }

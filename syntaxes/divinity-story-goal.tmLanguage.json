@@ -4,6 +4,10 @@
   "scopeName": "text.divinity.storygoal",
   "patterns": [
     {
+      "name": "constant.language.enum.bg3",
+      "match": "\\b[A-Z][A-Z0-9_]*\\.[A-Za-z_]\\w*\\b"
+    },
+    {
       "include": "#comments"
     },
     {

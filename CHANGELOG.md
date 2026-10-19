@@ -1,61 +1,9 @@
-# Version 1.0.12
+# Changelog
 
-- Ignore unresolved mod dependencies
+## 0.1.0
 
-# Version 1.0.11
-
-- VS Code 1.31 compatibility, tasks must have a scope now
-
-# Version 1.0.10
-
-- Simple completions for comparisons, no completions in comments
-- Stricter guid casts
-
-# Version 1.0.9
-
-- Enumeration definition update
-
-# Version 1.0.8
-
-- Hotfix: Prevent a dead lock when editing goals.
-- Hide "Show API explorer" in files that are no goals.
-- Allow empty values on enumeration parameters.
-
-# Version 1.0.7
-
-- Hotfix: Prevent a dead lock when loading projects.
-
-# Version 1.0.6
-
-- Enumeration support: enables better code completion for parameters that rely on value lists. Also shows up in the documentation.
-- Webpack bundle: Smaller extension and faster start up times
-- Copy to my mod: New command in the story outline
-- Show API explorer: Custom context menu command to open the API explorer.
-- External links in documentation
-- GUIDs are now recognized as one entity
-
-# Version 1.0.5
-
-- Fix dependency resolution logic
-- Rename debugger install command
-
-# Version 1.0.4
-
-- LSLib Compiler and Debugger: Add support for the best Osiris compiler and debugger out there
-
-# Version 1.0.3
-
-- Load dependencies from packed game files
-
-# Version 1.0.2
-
-- Various bugfixes
-
-# Version 1.0.1
-
-- Add log file syntax highlighting
-- Various bugfixes
-
-# Version 1.0.0
-
-Initial release
+- Fork Divinity Engine Script Support for BG3 Osiris editing.
+- Add project headers, current enum support, parameter hints and dependency indexing.
+- Add isolated native Toolkit builds, staged output and source-mapped errors.
+- Replace DOS2 build/install contributions with BG3 commands and tasks.
+- Add parser, language-server and native compiler regression checks.

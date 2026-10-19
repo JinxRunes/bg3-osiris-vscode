@@ -1,126 +1,103 @@
 {
-  "name": "divinity-vscode",
-  "displayName": "Divinity Engine Script Support",
-  "description": "VS Code language support for Divinity Engine story scripts",
+  "name": "bg3-osiris-vscode",
+  "displayName": "Baldur's Gate 3 Osiris",
+  "description": "BG3 Osiris editing and native Toolkit story compilation, forked from Divinity Engine Script Support.",
   "author": "Sebastian Lenz",
   "license": "MIT",
-  "version": "1.0.13",
-  "publisher": "sebastian-lenz",
+  "version": "0.1.0",
+  "publisher": "bg3-osiris-local",
   "categories": [
     "Programming Languages"
   ],
   "icon": "resources/extension.png",
   "keywords": [
-    "Larian",
-    "Divinity Engine",
+    "BG3",
+    "Baldur's Gate 3",
     "Osiris",
-    "Story Script"
+    "Larian",
+    "Story",
+    "Compiler"
   ],
   "engines": {
-    "vscode": "^1.31.0"
+    "vscode": "^1.85.0"
   },
   "activationEvents": [
-    "workspaceContains:/meta.lsx",
-    "workspaceContains:**/Story/story.div",
-    "workspaceContains:**/RawFiles/story_header.div",
     "onLanguage:divinity-story-goal",
     "onLanguage:divinity-story-div",
-    "onWebviewPanel:divinity.apiExplorer"
+    "workspaceContains:**/Story/RawFiles/story_header.div",
+    "onTaskType:bg3-osiris"
   ],
-  "homepage": "https://github.com/sebastian-lenz/divinity-vscode",
   "repository": {
     "type": "git",
     "url": "https://github.com/sebastian-lenz/divinity-vscode.git"
   },
-  "bugs": {
-    "url": "https://github.com/sebastian-lenz/divinity-vscode/issues"
-  },
-  "main": "./lib/client",
+  "main": "./lib/client.js",
   "contributes": {
     "configuration": {
-      "type": "object",
-      "title": "Divinity Engine Script configuration",
+      "title": "BG3 Osiris",
       "properties": {
-        "divinity.compilerPath": {
-          "scope": "window",
+        "bg3Osiris.toolkitPath": {
           "type": "string",
-          "description": "Set the path to the custom compiler."
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Folder containing the BG3 Toolkit Osiris.dll."
         },
-        "divinity.compilerLogPath": {
-          "scope": "window",
+        "bg3Osiris.projectPath": {
           "type": "string",
-          "description": "Set the path to which the compiler log is written."
+          "default": "",
+          "description": "Optional module folder containing Story/RawFiles/Goals; otherwise discovered from the workspace."
+        },
+        "bg3Osiris.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "scope": "machine-overridable",
+          "description": "Python 3.10+ executable."
+        },
+        "bg3Osiris.dotnetPath": {
+          "type": "string",
+          "default": "dotnet",
+          "scope": "machine-overridable",
+          "description": ".NET 10 runtime executable for the isolated native compiler worker."
+        },
+        "bg3Osiris.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show syntax diagnostics while editing. Native builds provide authoritative type checking."
         }
       }
     },
     "commands": [
       {
-        "command": "divinity.showApiExplorer",
-        "title": "Show API explorer",
-        "category": "Divinity"
+        "command": "bg3Osiris.prepareProject",
+        "title": "Prepare Project from Toolkit Build",
+        "category": "BG3 Osiris"
       },
       {
-        "command": "divinity.installLSLib",
-        "title": "Install LSLib Compiler and Debugger",
-        "category": "Divinity"
+        "command": "bg3Osiris.buildStory",
+        "title": "Build Story",
+        "category": "BG3 Osiris"
       },
       {
-        "command": "divinity.installDebugger",
-        "title": "Copy LSLib Debugger to editor or game",
-        "category": "Divinity"
+        "command": "bg3Osiris.showBuildOutput",
+        "title": "Open Last Build Output",
+        "category": "BG3 Osiris"
       },
       {
-        "command": "divinity.updateLSLib",
-        "title": "Update LSLib Compiler and Debugger",
-        "category": "Divinity"
+        "command": "bg3Osiris.openApiDocumentation",
+        "title": "Open BG3 API Documentation",
+        "category": "BG3 Osiris"
       },
       {
-        "command": "divinity.getDebugExecutable",
-        "title": "Get debug executable",
-        "category": "Divinity"
-      },
-      {
-        "command": "divinity.storyOutline.openGoal",
-        "title": "Open Goal",
-        "category": "Divinity",
-        "when": "viewItem == sharedGoal || viewItem == customGoal"
-      },
-      {
-        "command": "divinity.storyOutline.addGoal",
-        "title": "Add new Goal",
-        "category": "Divinity",
-        "when": "viewItem == sharedGoal || viewItem == customGoal"
-      },
-      {
-        "command": "divinity.storyOutline.renameGoal",
-        "title": "Rename Goal",
-        "category": "Divinity",
-        "when": "viewItem == customGoal"
-      },
-      {
-        "command": "divinity.storyOutline.deleteGoal",
-        "title": "Delete Goal",
-        "category": "Divinity",
-        "when": "viewItem == customGoal"
-      },
-      {
-        "command": "divinity.storyOutline.moveGoal",
-        "title": "Move Goal",
-        "category": "Divinity",
-        "when": "viewItem == customGoal"
-      },
-      {
-        "command": "divinity.storyOutline.copyGoal",
-        "title": "Copy Goal to my Mod",
-        "category": "Divinity",
-        "when": "viewItem == sharedGoal"
+        "command": "bg3Osiris.refreshWorkspace",
+        "title": "Refresh Project Index",
+        "category": "BG3 Osiris"
       }
     ],
     "languages": [
       {
         "id": "divinity-story-goal",
         "aliases": [
-          "Divinity story goal",
+          "BG3 Osiris Goal",
           "divinity-story-goal"
         ],
         "extensions": [
@@ -134,7 +111,7 @@
       {
         "id": "divinity-story-div",
         "aliases": [
-          "Divinity story div",
+          "BG3 Osiris Definitions",
           "divinity-story-div"
         ],
         "extensions": [
@@ -145,7 +122,7 @@
       {
         "id": "divinity-story-log",
         "aliases": [
-          "Divinity story log",
+          "BG3 Osiris Log",
           "divinity-story-log"
         ],
         "extensions": [
@@ -154,43 +131,11 @@
       }
     ],
     "menus": {
-      "view/item/context": [
-        {
-          "command": "divinity.storyOutline.openGoal",
-          "when": "view == divinity.storyOutline",
-          "group": "navigation"
-        },
-        {
-          "command": "divinity.storyOutline.addGoal",
-          "when": "view == divinity.storyOutline",
-          "group": "navigation"
-        },
-        {
-          "command": "divinity.storyOutline.renameGoal",
-          "when": "view == divinity.storyOutline && viewItem != sharedGoal",
-          "group": "1_modification"
-        },
-        {
-          "command": "divinity.storyOutline.deleteGoal",
-          "when": "view == divinity.storyOutline && viewItem != sharedGoal",
-          "group": "1_modification"
-        },
-        {
-          "command": "divinity.storyOutline.moveGoal",
-          "when": "view == divinity.storyOutline && viewItem != sharedGoal",
-          "group": "1_modification"
-        },
-        {
-          "command": "divinity.storyOutline.copyGoal",
-          "when": "view == divinity.storyOutline && viewItem == sharedGoal",
-          "group": "1_modification"
-        }
-      ],
       "editor/context": [
         {
-          "command": "divinity.showApiExplorer",
-          "group": "navigation",
-          "when": "editorTextFocus && editorLangId == divinity-story-goal"
+          "command": "bg3Osiris.openApiDocumentation",
+          "when": "editorLangId == divinity-story-goal",
+          "group": "navigation"
         }
       ]
     },
@@ -213,17 +158,16 @@
     ],
     "problemMatchers": [
       {
-        "name": "divinity.problemMatcher",
-        "owner": "divinity-vscode",
+        "name": "bg3-osiris",
+        "owner": "bg3-osiris",
         "fileLocation": "absolute",
         "pattern": {
-          "regexp": "^(WARN|ERR!) ((?:[^:]+:\\\\)?[^:]*):(\\d+):(\\d+): \\[([^\\]]+)\\] (.*)$",
+          "regexp": "^(error|warning): (.*)\\((\\d+),(\\d+)\\): (.*)$",
           "severity": 1,
           "file": 2,
           "line": 3,
           "column": 4,
-          "code": 5,
-          "message": 6
+          "message": 5
         }
       }
     ],
@@ -235,179 +179,60 @@
     ],
     "taskDefinitions": [
       {
-        "type": "divinity.task.compiler",
+        "type": "bg3-osiris",
         "required": [
-          "game",
-          "gameDataPath",
-          "output",
-          "mod"
+          "action"
         ],
         "properties": {
-          "gameDataPath": {
+          "action": {
             "type": "string",
-            "description": "Location of the game Data folder"
-          },
-          "output": {
-            "type": "string",
-            "description": "Compiled story output path"
-          },
-          "mod": {
-            "type": "array",
-            "description": "Check and compile all goals from the specified mod"
-          },
-          "game": {
-            "type": "string",
-            "description": "Set the target game version.",
             "enum": [
-              "dos2",
-              "dos2de"
+              "prepare",
+              "build"
             ]
           },
-          "noWarn": {
-            "type": "array",
-            "description": "Suppress warnings with diagnostic code <code>",
-            "enum": [
-              "alias-mismatch",
-              "db-naming",
-              "guid-prefix",
-              "rule-naming",
-              "string-lt",
-              "unused-db"
-            ]
-          },
-          "checkOnly": {
-            "type": "boolean",
-            "description": "Only check scripts for errors, don't generate compiled story file"
-          },
-          "checkNames": {
-            "type": "boolean",
-            "description": "Verify game object names (slow!)"
-          },
-          "debugInfo": {
+          "projectPath": {
             "type": "string",
-            "description": "Debugging symbols path"
-          },
-          "debugLog": {
-            "type": "string",
-            "description": "Debugging log path"
-          },
-          "reload": {
-            "type": "string",
-            "description": "Turns on editor level reloading.",
-            "enum": [
-              "reloadStory",
-              "reloadLevelAndStory"
-            ]
+            "description": "Absolute path to a BG3 module folder."
           }
         }
-      },
-      {
-        "type": "divinity.task.reload"
-      }
-    ],
-    "debuggers": [
-      {
-        "type": "osiris",
-        "label": "Osiris Debugger",
-        "languages": [
-          "divinity-story-goal"
-        ],
-        "adapterExecutableCommand": "divinity.getDebugExecutable",
-        "configurationAttributes": {
-          "launch": {
-            "properties": {
-              "debugInfoPath": {
-                "type": "string",
-                "description": "Location of story debug symbol file"
-              },
-              "backendHost": {
-                "type": "string",
-                "description": "IP address of debugger backend server"
-              },
-              "backendPort": {
-                "type": "number",
-                "description": "Port of debugger backend server"
-              },
-              "modUuid": {
-                "type": "string",
-                "description": "The uuid of the mod beeing debugged"
-              },
-              "dbgOptions": {
-                "type": "object",
-                "description": "Debugger custom overrides",
-                "properties": {
-                  "rawFrames": {
-                    "type": "boolean",
-                    "description": "Requests the debugger to return raw call frames from the backend instead of merging and pretty printing the frames."
-                  },
-                  "stopOnAllFrames": {
-                    "type": "boolean",
-                    "description": "Stop on all frames during single-stepping instead of meaningful frames."
-                  },
-                  "stopOnDbPropagation": {
-                    "type": "boolean",
-                    "description": "Stop inside database propagation calls during single-stepping."
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    ],
-    "breakpoints": [
-      {
-        "language": "divinity-story-goal"
       }
     ],
     "views": {
       "explorer": [
         {
-          "id": "divinity.storyOutline",
-          "name": "Story Outline",
-          "when": "divinity.storyOutline.enabled"
+          "id": "bg3Osiris.goals",
+          "name": "BG3 Story Goals"
         }
       ]
     }
   },
   "scripts": {
-    "compile": "rimraf ./lib/** && tsc -p ./tsconfig.publish.json && webpack",
-    "package": "vsce package",
-    "postinstall": "node ./node_modules/vscode/bin/install",
-    "test": "mocha",
-    "update-vscode": "node ./node_modules/vscode/bin/install",
-    "vscode:prepublish": "npm run update-vscode && npm run compile",
-    "watch": "rimraf ./lib/** && tsc -w -p ./tsconfig.json"
+    "compile": "node scripts/build.mjs",
+    "check": "tsc -p tsconfig.bg3.json --noEmit",
+    "test": "node --test test/bg3-*.test.cjs",
+    "test:compiler": "python tools/test_bg3_osiris.py",
+    "build:native": "dotnet build tools/native-worker/NativeOsirisWorker.csproj -c Release -o tools/native-worker/out --nologo",
+    "vscode:prepublish": "npm run compile && npm run build:native",
+    "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
-    "@types/fast-levenshtein": "0.0.1",
-    "@types/handlebars": "^4.1.0",
-    "@types/js-yaml": "^3.12.1",
-    "@types/long": "^4.0.0",
-    "@types/marked": "^0.4.2",
-    "@types/mkdirp": "^0.5.2",
-    "@types/node": "^8.10.49",
-    "@types/promise-queue": "^2.2.0",
-    "@types/rimraf": "^2.0.2",
-    "@types/unzipper": "^0.9.2",
-    "fast-levenshtein": "^2.0.6",
-    "fast-xml-parser": "^3.12.16",
-    "handlebars": "^4.1.2",
-    "js-yaml": "^3.13.1",
-    "long": "^4.0.0",
-    "mkdirp": "^0.5.1",
-    "mocha": "^5.2.0",
-    "promise-queue": "^2.2.5",
-    "rimraf": "^2.6.3",
-    "tslib": "^1.9.3",
-    "typescript": "2.8.3",
-    "unzipper": "^0.9.15",
-    "vscode": "^1.1.34",
-    "webpack": "^4.33.0",
-    "webpack-cli": "^3.3.2"
+    "@types/node": "22.18.6",
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "3.6.2",
+    "esbuild": "0.25.11",
+    "typescript": "5.9.3"
   },
   "dependencies": {
-    "vscode-languageclient": "^5.2.1",
-    "vscode-languageserver": "^5.2.1"
+    "vscode-languageclient": "9.0.1",
+    "vscode-languageserver": "9.0.1",
+    "vscode-languageserver-textdocument": "1.0.12"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Editing is available; native compilation requires a trusted workspace."
+    },
+    "virtualWorkspaces": false
   }
 }
